@@ -1,2 +1,2 @@
 export type * from './types';
-export * from './vocabList';
+export { loadVocabularyFromStorage, getActiveVocabulary } from './vocabList';

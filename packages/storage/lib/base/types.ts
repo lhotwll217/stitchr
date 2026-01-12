@@ -52,3 +52,32 @@ export interface ThemeStateType {
 export type ThemeStorageType = BaseStorageType<ThemeStateType> & {
   toggle: () => Promise<void>;
 };
+
+export interface VocabularyItem {
+  from: string;
+  to: string;
+  fromLang: string;
+  toLang: string;
+  enabled?: boolean;
+  addedAt?: number;
+  source?: 'hardcoded' | 'ai' | 'manual';
+}
+
+export type VocabularyStorageType = BaseStorageType<VocabularyItem[]> & {
+  addWord: (item: Omit<VocabularyItem, 'addedAt'>) => Promise<void>;
+  removeWord: (from: string) => Promise<void>;
+  toggleWord: (from: string) => Promise<void>;
+  updateWord: (from: string, updates: Partial<VocabularyItem>) => Promise<void>;
+};
+
+export interface SettingsState {
+  anthropicApiKey: string;
+  nativeLanguage: string;
+  learningLanguage: string;
+  learningLevel: 'A1' | 'A2' | 'B1' | 'B2' | 'C1' | 'C2';
+}
+
+export type SettingsStorageType = BaseStorageType<SettingsState> & {
+  setApiKey: (key: string) => Promise<void>;
+  clearApiKey: () => Promise<void>;
+};

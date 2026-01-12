@@ -1,49 +1,36 @@
 import type { VocabularyItem } from './types';
 
 /**
- * Vocabulary list for word replacements
- * TODO: Replace this with database/API calls when ready
+ * Vocabulary functions - reads directly from Chrome local storage
+ * No hardcoded defaults - all words come from user input via the new-tab UI
  */
-export const vocabList: VocabularyItem[] = [
-  {
-    from: 'project',
-    to: 'projekti',
-    fromLang: 'English',
-    toLang: 'Finnish',
-    enabled: true,
-  },
-  {
-    from: 'hot',
-    to: 'kuuma',
-    fromLang: 'English',
-    toLang: 'Finnish',
-    enabled: true,
-  },
-  {
-    from: 'cold',
-    to: 'kylmä',
-    fromLang: 'English',
-    toLang: 'Finnish',
-    enabled: true,
-  },
-  {
-    from: 'the',
-    to: 'se',
-    fromLang: 'English',
-    toLang: 'Finnish',
-    enabled: false, // disabled by default
-  },
-];
+
+const STORAGE_KEY = 'vocabulary-storage-key';
 
 /**
- * Get active vocabulary items
- * This function simulates what will become a database query
+ * Load vocabulary from Chrome storage
  */
-export const getActiveVocabulary = (): VocabularyItem[] => vocabList.filter(item => item.enabled !== false);
+export const loadVocabularyFromStorage = async (): Promise<VocabularyItem[]> => {
+  return new Promise(resolve => {
+    if (typeof chrome !== 'undefined' && chrome.storage?.local) {
+      chrome.storage.local.get(STORAGE_KEY, result => {
+        const stored = result[STORAGE_KEY];
+        if (Array.isArray(stored)) {
+          resolve(stored);
+        } else {
+          resolve([]);
+        }
+      });
+    } else {
+      resolve([]);
+    }
+  });
+};
 
 /**
- * Get vocabulary by language pair
- * Future: This will query the database with filters
+ * Get active vocabulary items from storage
  */
-export const getVocabularyByLanguagePair = (fromLang: string, toLang: string): VocabularyItem[] =>
-  getActiveVocabulary().filter(item => item.fromLang === fromLang && item.toLang === toLang);
+export const getActiveVocabulary = async (): Promise<VocabularyItem[]> => {
+  const vocabulary = await loadVocabularyFromStorage();
+  return vocabulary.filter(item => item.enabled !== false);
+};

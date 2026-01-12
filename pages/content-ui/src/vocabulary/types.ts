@@ -4,4 +4,6 @@ export interface VocabularyItem {
   fromLang: string;
   toLang: string;
   enabled?: boolean;
+  addedAt?: number;
+  source?: 'hardcoded' | 'ai' | 'manual';
 }
