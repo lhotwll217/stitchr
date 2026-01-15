@@ -8,3 +8,4 @@ export { Switch } from './switch';
 export { ScrollArea, ScrollBar } from './scroll-area';
 export { Separator } from './separator';
 export { Tooltip, TooltipTrigger, TooltipContent, TooltipProvider } from './tooltip';
+export { Collapsible, CollapsibleTrigger, CollapsibleContent } from './collapsible';

@@ -6,6 +6,7 @@
   "private": true,
   "sideEffects": false,
   "devDependencies": {
-    "@extension/tsconfig": "workspace:*"
+    "@extension/tsconfig": "workspace:*",
+    "@tailwindcss/typography": "^0.5.19"
   }
 }

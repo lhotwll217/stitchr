@@ -25,6 +25,7 @@
     "@extension/i18n": "workspace:*",
     "@extension/shared": "workspace:*",
     "@extension/storage": "workspace:*",
+    "@radix-ui/react-collapsible": "^1.1.12",
     "@radix-ui/react-scroll-area": "^1.2.2",
     "@radix-ui/react-separator": "^1.1.1",
     "@radix-ui/react-slot": "^1.1.1",
