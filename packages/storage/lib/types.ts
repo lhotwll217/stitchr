@@ -1,8 +1,2 @@
-import type { ValueOrUpdateType } from './base/index.js';
-
-export type BaseStorageType<D> = {
-  get: () => Promise<D>;
-  set: (value: ValueOrUpdateType<D>) => Promise<void>;
-  getSnapshot: () => D | null;
-  subscribe: (listener: () => void) => () => void;
-};
+// Types are exported from base/types.ts via base/index.js
+// This file is kept for backwards compatibility

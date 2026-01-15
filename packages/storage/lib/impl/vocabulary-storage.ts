@@ -19,19 +19,20 @@ export const vocabularyStorage: VocabularyStorageType = {
 
   addWord: async (item: Omit<VocabularyItem, 'addedAt'>) => {
     await storage.set(currentItems => {
-      const lowerFrom = item.from.toLowerCase();
-      const exists = currentItems.some(i => i.from.toLowerCase() === lowerFrom);
+      // Filter out legacy items with old field names (from/to instead of nativeWord/learningWord)
+      const validItems = currentItems.filter(i => i.nativeWord && i.learningWord);
+
+      const lowerNative = item.nativeWord.toLowerCase();
+      const exists = validItems.some(i => i.nativeWord.toLowerCase() === lowerNative);
 
       if (exists) {
-        // Update existing word
-        return currentItems.map(i =>
-          i.from.toLowerCase() === lowerFrom ? { ...i, ...item, addedAt: i.addedAt || Date.now() } : i
+        return validItems.map(i =>
+          i.nativeWord.toLowerCase() === lowerNative ? { ...i, ...item, addedAt: i.addedAt || Date.now() } : i,
         );
       }
 
-      // Add new word
       return [
-        ...currentItems,
+        ...validItems,
         {
           ...item,
           enabled: item.enabled ?? true,
@@ -41,23 +42,28 @@ export const vocabularyStorage: VocabularyStorageType = {
     });
   },
 
-  removeWord: async (from: string) => {
-    const lowerFrom = from.toLowerCase();
-    await storage.set(currentItems => currentItems.filter(i => i.from.toLowerCase() !== lowerFrom));
+  removeWord: async (nativeWord: string) => {
+    const lowerNative = nativeWord.toLowerCase();
+    await storage.set(currentItems => {
+      const validItems = currentItems.filter(i => i.nativeWord && i.learningWord);
+      return validItems.filter(i => i.nativeWord.toLowerCase() !== lowerNative);
+    });
   },
 
-  toggleWord: async (from: string) => {
-    const lowerFrom = from.toLowerCase();
-    await storage.set(currentItems =>
-      currentItems.map(i => (i.from.toLowerCase() === lowerFrom ? { ...i, enabled: !i.enabled } : i))
-    );
+  toggleWord: async (nativeWord: string) => {
+    const lowerNative = nativeWord.toLowerCase();
+    await storage.set(currentItems => {
+      const validItems = currentItems.filter(i => i.nativeWord && i.learningWord);
+      return validItems.map(i => (i.nativeWord.toLowerCase() === lowerNative ? { ...i, enabled: !i.enabled } : i));
+    });
   },
 
-  updateWord: async (from: string, updates: Partial<VocabularyItem>) => {
-    const lowerFrom = from.toLowerCase();
-    await storage.set(currentItems =>
-      currentItems.map(i => (i.from.toLowerCase() === lowerFrom ? { ...i, ...updates } : i))
-    );
+  updateWord: async (nativeWord: string, updates: Partial<VocabularyItem>) => {
+    const lowerNative = nativeWord.toLowerCase();
+    await storage.set(currentItems => {
+      const validItems = currentItems.filter(i => i.nativeWord && i.learningWord);
+      return validItems.map(i => (i.nativeWord.toLowerCase() === lowerNative ? { ...i, ...updates } : i));
+    });
   },
 };
 
@@ -66,13 +72,17 @@ export const vocabularyStorage: VocabularyStorageType = {
  */
 export const getActiveVocabulary = async (): Promise<VocabularyItem[]> => {
   const all = await vocabularyStorage.get();
-  return all.filter(item => item.enabled !== false);
+  // Filter legacy items and get only enabled ones
+  return all.filter(item => item.nativeWord && item.learningWord && item.enabled !== false);
 };
 
 /**
  * Get vocabulary by language pair
  */
-export const getVocabularyByLanguagePair = async (fromLang: string, toLang: string): Promise<VocabularyItem[]> => {
+export const getVocabularyByLanguagePair = async (
+  nativeLang: string,
+  learningLang: string,
+): Promise<VocabularyItem[]> => {
   const active = await getActiveVocabulary();
-  return active.filter(item => item.fromLang === fromLang && item.toLang === toLang);
+  return active.filter(item => item.nativeLang === nativeLang && item.learningLang === learningLang);
 };

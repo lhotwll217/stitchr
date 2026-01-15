@@ -54,10 +54,10 @@ export type ThemeStorageType = BaseStorageType<ThemeStateType> & {
 };
 
 export interface VocabularyItem {
-  from: string;
-  to: string;
-  fromLang: string;
-  toLang: string;
+  nativeWord: string; // Word in user's native language (found on websites)
+  learningWord: string; // Word in language being learned (replacement)
+  nativeLang: string; // e.g., "English"
+  learningLang: string; // e.g., "Finnish"
   enabled?: boolean;
   addedAt?: number;
   source?: 'hardcoded' | 'ai' | 'manual';
@@ -65,9 +65,9 @@ export interface VocabularyItem {
 
 export type VocabularyStorageType = BaseStorageType<VocabularyItem[]> & {
   addWord: (item: Omit<VocabularyItem, 'addedAt'>) => Promise<void>;
-  removeWord: (from: string) => Promise<void>;
-  toggleWord: (from: string) => Promise<void>;
-  updateWord: (from: string, updates: Partial<VocabularyItem>) => Promise<void>;
+  removeWord: (nativeWord: string) => Promise<void>;
+  toggleWord: (nativeWord: string) => Promise<void>;
+  updateWord: (nativeWord: string, updates: Partial<VocabularyItem>) => Promise<void>;
 };
 
 export interface SettingsState {
