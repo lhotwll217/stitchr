@@ -1,2 +1,2 @@
-// Types are exported from base/types.ts via base/index.js
-// This file is kept for backwards compatibility
+// Re-export base types so legacy imports from `storage/lib/types` keep working.
+export type * from './base/types.js';

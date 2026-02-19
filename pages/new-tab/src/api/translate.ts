@@ -1,11 +1,11 @@
-export interface VocabularySuggestion {
-  nativeWord: string;    // Word in user's native language (for website replacement)
-  learningWord: string;  // Word in language being learned
-  nativeLang: string;    // e.g., "English"
-  learningLang: string;  // e.g., "Finnish"
+interface VocabularySuggestion {
+  nativeWord: string; // Word in user's native language (for website replacement)
+  learningWord: string; // Word in language being learned
+  nativeLang: string; // e.g., "English"
+  learningLang: string; // e.g., "Finnish"
 }
 
-export interface TranslationResponse {
+interface TranslationResponse {
   translation: string;
   extractedText?: string;
   suggestions: VocabularySuggestion[];
@@ -18,11 +18,9 @@ const buildPrompt = (
   hasImage: boolean,
   nativeLanguage: string,
   learningLanguage: string,
-  level: string
+  level: string,
 ): string => {
-  const imageInstruction = hasImage
-    ? `First, extract all readable text from the image. Then translate it.`
-    : '';
+  const imageInstruction = hasImage ? `First, extract all readable text from the image. Then translate it.` : '';
 
   return `You are a professional translator and language learning assistant for a ${nativeLanguage} speaker learning ${learningLanguage} at ${level} level.
 
@@ -79,8 +77,7 @@ Only output valid JSON, no other text.`;
 interface AnthropicMessage {
   role: 'user' | 'assistant';
   content: Array<
-    | { type: 'text'; text: string }
-    | { type: 'image'; source: { type: 'base64'; media_type: string; data: string } }
+    { type: 'text'; text: string } | { type: 'image'; source: { type: 'base64'; media_type: string; data: string } }
   >;
 }
 
@@ -90,8 +87,8 @@ export const translateContent = async (
   imageBase64?: string,
   nativeLanguage = 'English',
   learningLanguage = 'Finnish',
-  level = 'B1'
-): Promise<TranslationResponse> {
+  level = 'B1',
+): Promise<TranslationResponse> => {
   if (!apiKey) {
     throw new Error('Please enter your Anthropic API key in Settings');
   }
@@ -158,17 +155,18 @@ export const translateContent = async (
   // Parse JSON response
   try {
     const parsed = JSON.parse(responseText);
-    
+
     // Only return suggestions if translation was actually needed
-    const suggestions = parsed.needsTranslation && parsed.suggestions 
-      ? parsed.suggestions.map((s: { from: string; to: string }) => ({
-          nativeWord: s.from,      // Native language word (for finding on websites)
-          learningWord: s.to,      // Learning language word (from the original text)
-          nativeLang: nativeLanguage,   // e.g., English
-          learningLang: learningLanguage, // e.g., Finnish
-        }))
-      : [];
-    
+    const suggestions =
+      parsed.needsTranslation && parsed.suggestions
+        ? parsed.suggestions.map((s: { from: string; to: string }) => ({
+            nativeWord: s.from, // Native language word (for finding on websites)
+            learningWord: s.to, // Learning language word (from the original text)
+            nativeLang: nativeLanguage, // e.g., English
+            learningLang: learningLanguage, // e.g., Finnish
+          }))
+        : [];
+
     return {
       translation: parsed.translation || '',
       extractedText: parsed.extractedText,
@@ -183,11 +181,12 @@ export const translateContent = async (
   }
 };
 
-export const fileToBase64 = (file: File): Promise<string> => {
-  return new Promise((resolve, reject) => {
+export const fileToBase64 = (file: File): Promise<string> =>
+  new Promise((resolve, reject) => {
     const reader = new FileReader();
     reader.readAsDataURL(file);
     reader.onload = () => resolve(reader.result as string);
     reader.onerror = error => reject(error);
   });
-};
+
+export type { TranslationResponse, VocabularySuggestion };
