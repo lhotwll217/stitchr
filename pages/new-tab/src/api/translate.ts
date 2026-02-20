@@ -1,8 +1,11 @@
+import { createProvider } from '@extension/llm';
+import type { ContentBlock, ProviderId } from '@extension/llm';
+
 interface VocabularySuggestion {
-  nativeWord: string; // Word in user's native language (for website replacement)
-  learningWord: string; // Word in language being learned
-  nativeLang: string; // e.g., "English"
-  learningLang: string; // e.g., "Finnish"
+  nativeWord: string;
+  learningWord: string;
+  nativeLang: string;
+  learningLang: string;
 }
 
 interface TranslationResponse {
@@ -11,7 +14,10 @@ interface TranslationResponse {
   suggestions: VocabularySuggestion[];
 }
 
-const ANTHROPIC_API_URL = 'https://api.anthropic.com/v1/messages';
+const PROVIDER_LABELS: Record<ProviderId, string> = {
+  anthropic: 'Anthropic',
+  openai: 'OpenAI',
+};
 
 const buildPrompt = (
   text: string | undefined,
@@ -20,7 +26,7 @@ const buildPrompt = (
   learningLanguage: string,
   level: string,
 ): string => {
-  const imageInstruction = hasImage ? `First, extract all readable text from the image. Then translate it.` : '';
+  const imageInstruction = hasImage ? 'First, extract all readable text from the image. Then translate it.' : '';
 
   return `You are a professional translator and language learning assistant for a ${nativeLanguage} speaker learning ${learningLanguage} at ${level} level.
 
@@ -74,15 +80,24 @@ Output: { "translation": "winter is cold", "needsTranslation": true, "suggestion
 Only output valid JSON, no other text.`;
 };
 
-interface AnthropicMessage {
-  role: 'user' | 'assistant';
-  content: Array<
-    { type: 'text'; text: string } | { type: 'image'; source: { type: 'base64'; media_type: string; data: string } }
-  >;
-}
+const parseImageBlock = (imageBase64: string): Extract<ContentBlock, { type: 'image' }> | null => {
+  const match = imageBase64.match(/^data:([^;]+);base64,(.+)$/);
 
-export const translateContent = async (
+  if (!match) {
+    return null;
+  }
+
+  return {
+    type: 'image',
+    mediaType: match[1],
+    data: match[2],
+  };
+};
+
+const translateContent = async (
+  providerId: ProviderId,
   apiKey: string,
+  model: string,
   text?: string,
   imageBase64?: string,
   nativeLanguage = 'English',
@@ -90,7 +105,7 @@ export const translateContent = async (
   level = 'B1',
 ): Promise<TranslationResponse> => {
   if (!apiKey) {
-    throw new Error('Please enter your Anthropic API key in Settings');
+    throw new Error(`Please enter your ${PROVIDER_LABELS[providerId]} API key in Settings`);
   }
 
   if (!text && !imageBase64) {
@@ -100,21 +115,12 @@ export const translateContent = async (
   const hasImage = !!imageBase64;
   const prompt = buildPrompt(text, hasImage, nativeLanguage, learningLanguage, level);
 
-  // Build message content
-  const content: AnthropicMessage['content'] = [];
+  const content: ContentBlock[] = [];
 
   if (imageBase64) {
-    // Extract base64 data and media type
-    const match = imageBase64.match(/^data:([^;]+);base64,(.+)$/);
-    if (match) {
-      content.push({
-        type: 'image',
-        source: {
-          type: 'base64',
-          media_type: match[1],
-          data: match[2],
-        },
-      });
+    const imageBlock = parseImageBlock(imageBase64);
+    if (imageBlock) {
+      content.push(imageBlock);
     }
   }
 
@@ -123,47 +129,34 @@ export const translateContent = async (
     text: prompt,
   });
 
-  const response = await fetch(ANTHROPIC_API_URL, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      'x-api-key': apiKey,
-      'anthropic-version': '2023-06-01',
-      'anthropic-dangerous-direct-browser-access': 'true',
-    },
-    body: JSON.stringify({
-      model: 'claude-sonnet-4-20250514',
-      max_tokens: 2048,
-      messages: [
-        {
-          role: 'user',
-          content,
-        },
-      ],
-    }),
+  const provider = createProvider({
+    providerId,
+    apiKey,
+    model,
   });
 
-  if (!response.ok) {
-    const errorData = await response.json().catch(() => ({}));
-    const errorMessage = (errorData as { error?: { message?: string } })?.error?.message || response.statusText;
-    throw new Error(`API Error: ${errorMessage}`);
-  }
+  const result = await provider.complete({
+    model,
+    maxTokens: 2048,
+    messages: [
+      {
+        role: 'user',
+        content,
+      },
+    ],
+  });
 
-  const data = await response.json();
-  const responseText = data.content?.[0]?.text || '';
+  const responseText = result.text || '';
 
-  // Parse JSON response
   try {
     const parsed = JSON.parse(responseText);
-
-    // Only return suggestions if translation was actually needed
     const suggestions =
       parsed.needsTranslation && parsed.suggestions
-        ? parsed.suggestions.map((s: { from: string; to: string }) => ({
-            nativeWord: s.from, // Native language word (for finding on websites)
-            learningWord: s.to, // Learning language word (from the original text)
-            nativeLang: nativeLanguage, // e.g., English
-            learningLang: learningLanguage, // e.g., Finnish
+        ? parsed.suggestions.map((suggestion: { from: string; to: string }) => ({
+            nativeWord: suggestion.from,
+            learningWord: suggestion.to,
+            nativeLang: nativeLanguage,
+            learningLang: learningLanguage,
           }))
         : [];
 
@@ -173,7 +166,6 @@ export const translateContent = async (
       suggestions,
     };
   } catch {
-    // If JSON parsing fails, return the raw text as translation
     return {
       translation: responseText,
       suggestions: [],
@@ -181,7 +173,7 @@ export const translateContent = async (
   }
 };
 
-export const fileToBase64 = (file: File): Promise<string> =>
+const fileToBase64 = (file: File): Promise<string> =>
   new Promise((resolve, reject) => {
     const reader = new FileReader();
     reader.readAsDataURL(file);
@@ -189,4 +181,5 @@ export const fileToBase64 = (file: File): Promise<string> =>
     reader.onerror = error => reject(error);
   });
 
+export { fileToBase64, translateContent };
 export type { TranslationResponse, VocabularySuggestion };

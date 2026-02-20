@@ -7,9 +7,15 @@ interface ChatInputProps {
   onSendMessage: (text: string, image?: File) => void;
   isLoading?: boolean;
   apiKeyMissing?: boolean;
+  providerLabel?: string;
 }
 
-export function ChatInput({ onSendMessage, isLoading = false, apiKeyMissing = false }: ChatInputProps) {
+export function ChatInput({
+  onSendMessage,
+  isLoading = false,
+  apiKeyMissing = false,
+  providerLabel = 'selected provider',
+}: ChatInputProps) {
   const [inputText, setInputText] = useState('');
   const [selectedImage, setSelectedImage] = useState<File | null>(null);
   const [imagePreview, setImagePreview] = useState<string | null>(null);
@@ -103,7 +109,9 @@ export function ChatInput({ onSendMessage, isLoading = false, apiKeyMissing = fa
       {apiKeyMissing && (
         <div className="mb-4 rounded-xl border-2 border-destructive/20 bg-destructive/5 p-4 text-xs text-destructive flex items-center gap-3 shadow-sm animate-in fade-in slide-in-from-top-2">
           <span className="text-xl">⚠️</span>
-          <span className="font-bold tracking-tight">API key not configured. Please add your Anthropic API key in Settings.</span>
+          <span className="font-bold tracking-tight">
+            API key not configured. Please add your {providerLabel} API key in Settings.
+          </span>
         </div>
       )}
 

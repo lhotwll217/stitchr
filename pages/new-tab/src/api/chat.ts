@@ -1,132 +1,32 @@
+import { createProvider } from '@extension/llm';
 import type { ChatMessage, ChatMessageResponse } from '../types/chat';
-import { getSetting } from '../config/settings';
+import type { ContentBlock, LLMMessage, ProviderId } from '@extension/llm';
 
-/**
- * Unified chat endpoint - LLM handles everything through structured output
- */
-export async function sendChatMessage(
-  apiKey: string,
-  text: string | undefined,
-  imageBase64: string | undefined,
+const PROVIDER_LABELS: Record<ProviderId, string> = {
+  anthropic: 'Anthropic',
+  openai: 'OpenAI',
+};
+
+const parseImageBlock = (imageBase64: string): Extract<ContentBlock, { type: 'image' }> | null => {
+  const match = imageBase64.match(/^data:([^;]+);base64,(.+)$/);
+
+  if (!match) {
+    return null;
+  }
+
+  return {
+    type: 'image',
+    mediaType: match[1],
+    data: match[2],
+  };
+};
+
+const buildPrompt = (
   nativeLanguage: string,
   learningLanguage: string,
   level: string,
-  history: ChatMessage[] = [],
-): Promise<ChatMessageResponse> {
-  if (!apiKey) {
-    throw new Error('Please enter your Anthropic API key in Settings');
-  }
-
-  if (!text && !imageBase64) {
-    throw new Error('Message text or image is required');
-  }
-
-  const prompt = buildPrompt(nativeLanguage, learningLanguage, level);
-
-  // Build message content
-  const messageContent: Array<{ type: string; text?: string; source?: object }> = [];
-
-  if (imageBase64) {
-    const match = imageBase64.match(/^data:([^;]+);base64,(.+)$/);
-    if (match) {
-      messageContent.push({
-        type: 'image',
-        source: {
-          type: 'base64',
-          media_type: match[1],
-          data: match[2],
-        },
-      });
-    }
-  }
-
-  if (text) {
-    messageContent.push({ type: 'text', text });
-  } else if (imageBase64) {
-    messageContent.push({ type: 'text', text: 'Translate the text in this image.' });
-  }
-
-  // Build messages array with history
-  const messages: Array<{ role: 'user' | 'assistant'; content: string | typeof messageContent }> = [];
-
-  // Add recent history (last 10 messages to keep context manageable)
-  const recentHistory = history.slice(-10);
-  for (const msg of recentHistory) {
-    messages.push({
-      role: msg.role,
-      content: msg.content,
-    });
-  }
-
-  // Add current user message
-  messages.push({ role: 'user', content: messageContent });
-
-  const response = await fetch('https://api.anthropic.com/v1/messages', {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      'x-api-key': apiKey,
-      'anthropic-version': '2023-06-01',
-      'anthropic-dangerous-direct-browser-access': 'true',
-    },
-    body: JSON.stringify({
-      model: getSetting('model'),
-      max_tokens: 1024,
-      system: prompt,
-      messages,
-    }),
-  });
-
-  if (!response.ok) {
-    const errorData = await response.json().catch(() => ({}));
-    throw new Error(`API Error: ${(errorData as { error?: { message?: string } })?.error?.message || response.statusText}`);
-  }
-
-  const data = await response.json();
-  const responseText = data.content?.[0]?.text || '';
-
-  // Parse JSON response from LLM (strip markdown code fences if present)
-  try {
-    let jsonText = responseText.trim();
-    // Remove markdown code fences if present
-    if (jsonText.startsWith('```')) {
-      jsonText = jsonText.replace(/^```(?:json)?\n?/, '').replace(/\n?```$/, '');
-    }
-
-    const parsed = JSON.parse(jsonText);
-    return {
-      content: parsed.response || '',
-      suggestions: (parsed.suggestions || []).map((s: { learningWord: string; nativeWord: string }) => ({
-        learningWord: s.learningWord,
-        nativeWord: s.nativeWord,
-        learningLang: learningLanguage,
-        nativeLang: nativeLanguage,
-      })),
-      shouldSuperimpose: parsed.shouldSuperimpose ?? false,
-      type: parsed.shouldSuperimpose ? 'translation' : 'conversation',
-    };
-  } catch {
-    // Fallback if JSON parsing fails
-    return {
-      content: responseText,
-      suggestions: [],
-      shouldSuperimpose: false,
-      type: 'conversation',
-    };
-  }
-}
-
-/**
- * Build the system prompt - LLM returns structured JSON
- */
-function buildPrompt(
-  nativeLanguage: string,
-  learningLanguage: string,
-  level: string,
-): string {
-  const maxWords = getSetting('maxVocabWordsPerTranslation');
-
-  return `You are a language tutor helping a ${nativeLanguage} speaker learn ${learningLanguage} at ${level} level.
+  maxWordsPerTranslation: number,
+): string => `You are a language tutor helping a ${nativeLanguage} speaker learn ${learningLanguage} at ${level} level.
 
 This app builds vocabulary by superimposing ${learningLanguage} words on ${nativeLanguage} websites. When browsing, we replace nativeWord with learningWord (case-insensitive match).
 
@@ -143,7 +43,7 @@ Three scenarios:
 
 A) TRANSLATION: User gives ${learningLanguage} text to translate
    - response: Translate to ${nativeLanguage}
-   - suggestions: ${maxWords} words max, ONE per sentence
+   - suggestions: ${maxWordsPerTranslation} words max, ONE per sentence
    - shouldSuperimpose: true
 
 B) NEW VOCABULARY: User asks "How do I say X?" or wants to add a word
@@ -168,4 +68,96 @@ Suggestion rules:
 - Prefer nouns, adjectives, common verbs
 
 Only output valid JSON.`;
-}
+
+const sendChatMessage = async (
+  providerId: ProviderId,
+  apiKey: string,
+  model: string,
+  text: string | undefined,
+  imageBase64: string | undefined,
+  nativeLanguage: string,
+  learningLanguage: string,
+  level: string,
+  maxWordsPerTranslation: number,
+  history: ChatMessage[] = [],
+): Promise<ChatMessageResponse> => {
+  if (!apiKey) {
+    throw new Error(`Please enter your ${PROVIDER_LABELS[providerId]} API key in Settings`);
+  }
+
+  if (!text && !imageBase64) {
+    throw new Error('Message text or image is required');
+  }
+
+  const prompt = buildPrompt(nativeLanguage, learningLanguage, level, maxWordsPerTranslation);
+  const messageContent: ContentBlock[] = [];
+
+  if (imageBase64) {
+    const imageBlock = parseImageBlock(imageBase64);
+    if (imageBlock) {
+      messageContent.push(imageBlock);
+    }
+  }
+
+  if (text) {
+    messageContent.push({ type: 'text', text });
+  } else if (imageBase64) {
+    messageContent.push({ type: 'text', text: 'Translate the text in this image.' });
+  }
+
+  const recentHistory = history.slice(-10);
+  const messages: LLMMessage[] = recentHistory.map(message => ({
+    role: message.role,
+    content: message.content,
+  }));
+
+  messages.push({
+    role: 'user',
+    content: imageBase64 ? messageContent : (text as string),
+  });
+
+  const provider = createProvider({
+    providerId,
+    apiKey,
+    model,
+  });
+
+  const result = await provider.complete({
+    model,
+    maxTokens: 1024,
+    system: prompt,
+    messages,
+  });
+
+  const responseText = result.text || '';
+
+  try {
+    let jsonText = responseText.trim();
+
+    if (jsonText.startsWith('```')) {
+      jsonText = jsonText.replace(/^```(?:json)?\n?/, '').replace(/\n?```$/, '');
+    }
+
+    const parsed = JSON.parse(jsonText);
+    return {
+      content: parsed.response || '',
+      suggestions: (parsed.suggestions || []).map((suggestion: { learningWord: string; nativeWord: string }) => ({
+        learningWord: suggestion.learningWord,
+        nativeWord: suggestion.nativeWord,
+        learningLang: learningLanguage,
+        nativeLang: nativeLanguage,
+      })),
+      shouldSuperimpose: parsed.shouldSuperimpose ?? false,
+      type: parsed.shouldSuperimpose ? 'translation' : 'conversation',
+    };
+  } catch {
+    return {
+      content: responseText,
+      suggestions: [],
+      shouldSuperimpose: false,
+      type: 'conversation',
+    };
+  }
+};
+
+export { sendChatMessage };

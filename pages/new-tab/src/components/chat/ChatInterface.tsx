@@ -2,20 +2,21 @@ import { ChatInput } from './ChatInput';
 import { ChatMessageList } from './ChatMessageList';
 import { sendChatMessage } from '../../api/chat';
 import { fileToBase64 } from '../../api/translate';
-import { useVocabularyStorage } from '../../hooks/useVocabularyStorage';
+import { getSetting } from '../../config/settings';
 import { useSettings } from '../../hooks/useSettings';
+import { useVocabularyStorage } from '../../hooks/useVocabularyStorage';
 import { generateMessageId } from '../../utils/messageHelpers';
-import React, { useEffect, useState } from 'react';
+import { useEffect, useState } from 'react';
 import type { ChatMessage, VocabularySuggestion } from '../../types/chat';
 
 const CHAT_STORAGE_KEY = 'chat-history-v1';
 const MAX_MESSAGES = 50;
 
-export function ChatInterface() {
+const ChatInterface = () => {
   const settings = useSettings();
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [isLoading, setIsLoading] = useState(false);
-  const { vocabulary, addWord, hasWord } = useVocabularyStorage();
+  const { vocabulary, addWord } = useVocabularyStorage();
 
   // Load chat history on mount
   useEffect(() => {
@@ -51,12 +52,12 @@ export function ChatInterface() {
   }, [messages]);
 
   const handleSendMessage = async (text: string, image?: File) => {
-    if (!settings.anthropicApiKey) {
+    if (!settings.apiKey) {
       const errorMessage: ChatMessage = {
         id: generateMessageId(),
         role: 'assistant',
         type: 'conversation',
-        content: 'API key is not configured. Please add your Anthropic API key in Settings.',
+        content: `API key is not configured. Please add your ${settings.providerLabel} API key in Settings.`,
         timestamp: Date.now(),
         error: 'API key missing',
       };
@@ -90,12 +91,15 @@ export function ChatInterface() {
 
       // Call unified API - LLM handles everything (pass message history for context)
       const response = await sendChatMessage(
-        settings.anthropicApiKey,
+        settings.provider,
+        settings.apiKey,
+        settings.model,
         text.trim() || undefined,
         imageBase64,
         settings.nativeLanguage,
         settings.learningLanguage,
         settings.learningLevel,
+        getSetting('maxVocabWordsPerTranslation'),
         messages,
       );
 
@@ -177,27 +181,19 @@ export function ChatInterface() {
   };
 
   const handleQuickAction = (action: string) => {
-    // Could be used to pre-fill the input with a hint
-    let hint = '';
-    switch (action) {
-      case 'translate':
-        hint = 'Translate: ';
-        break;
-      case 'image':
-        hint = 'Paste an image with text to translate. ';
-        break;
-      case 'learn':
-        hint = 'How do I... ';
-        break;
-    }
-    // In a full implementation, we could focus the input and pre-fill
-    console.log('Quick action clicked:', action);
+    const hints: Record<string, string> = {
+      translate: 'Translate: ',
+      image: 'Paste an image with text to translate.',
+      learn: 'How do I... ',
+    };
+
+    console.log('Quick action clicked:', action, hints[action] || '');
   };
 
   return (
-    <div className="bg-background flex h-full flex-col min-h-0 overflow-hidden w-full relative">
+    <div className="bg-background relative flex h-full min-h-0 w-full flex-col overflow-hidden">
       {/* Messages area - optimized for scrolling */}
-      <div className="flex-1 min-h-0 w-full overflow-hidden flex flex-col">
+      <div className="flex min-h-0 w-full flex-1 flex-col overflow-hidden">
         <ChatMessageList
           messages={messages}
           vocabulary={vocabulary}
@@ -210,21 +206,28 @@ export function ChatInterface() {
       </div>
 
       {/* Input area - floating and integrated */}
-      <div className="flex-shrink-0 w-full px-10 pb-10 pt-4 z-20">
-        <div className="max-w-4xl mx-auto w-full">
-          <ChatInput onSendMessage={handleSendMessage} isLoading={isLoading} apiKeyMissing={!settings.anthropicApiKey} />
+      <div className="z-20 w-full flex-shrink-0 px-10 pb-10 pt-4">
+        <div className="mx-auto w-full max-w-4xl">
+          <ChatInput
+            onSendMessage={handleSendMessage}
+            isLoading={isLoading}
+            apiKeyMissing={!settings.apiKey}
+            providerLabel={settings.providerLabel}
+          />
         </div>
       </div>
-      
+
       {/* Absolute "Clear" button */}
-      <div className="absolute top-0 right-10 z-30 opacity-20 hover:opacity-100 transition-all duration-300 transform -translate-y-1/2 hover:translate-y-2">
+      <div className="absolute right-10 top-0 z-30 -translate-y-1/2 transform opacity-20 transition-all duration-300 hover:translate-y-2 hover:opacity-100">
         <button
           onClick={handleClearHistory}
-          className="text-[9px] font-black tracking-[0.2em] uppercase text-muted-foreground hover:text-destructive px-4 py-2 rounded-full border border-border bg-background/80 backdrop-blur-md shadow-sm"
+          className="text-muted-foreground hover:text-destructive border-border bg-background/80 rounded-full border px-4 py-2 text-[9px] font-black uppercase tracking-[0.2em] shadow-sm backdrop-blur-md"
           title="Clear chat history">
           Clear History
         </button>
       </div>
     </div>
   );
-}
+};
+
+export { ChatInterface };

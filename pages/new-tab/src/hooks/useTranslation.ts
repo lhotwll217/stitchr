@@ -1,7 +1,7 @@
-import { useState, useCallback } from 'react';
-import { useStorage } from '@extension/shared';
-import { settingsStorage } from '@extension/storage';
-import { translateContent, fileToBase64, type TranslationResponse, type VocabularySuggestion } from '../api/translate';
+import { useSettings } from './useSettings';
+import { fileToBase64, translateContent } from '../api/translate';
+import { useCallback, useState } from 'react';
+import type { TranslationResponse, VocabularySuggestion } from '../api/translate';
 
 interface UseTranslationState {
   isLoading: boolean;
@@ -12,7 +12,7 @@ interface UseTranslationState {
 }
 
 export const useTranslation = () => {
-  const settings = useStorage(settingsStorage);
+  const settings = useSettings();
 
   const [state, setState] = useState<UseTranslationState>({
     isLoading: false,
@@ -24,10 +24,10 @@ export const useTranslation = () => {
 
   const translate = useCallback(
     async (text?: string, imageFile?: File) => {
-      if (!settings?.anthropicApiKey) {
+      if (!settings.apiKey) {
         setState(prev => ({
           ...prev,
-          error: 'Please enter your Anthropic API key in the settings below',
+          error: `Please enter your ${settings.providerLabel} API key in Settings`,
         }));
         return;
       }
@@ -46,12 +46,14 @@ export const useTranslation = () => {
         }
 
         const response: TranslationResponse = await translateContent(
-          settings.anthropicApiKey,
+          settings.provider,
+          settings.apiKey,
+          settings.model,
           text,
           imageBase64,
           settings.nativeLanguage,
           settings.learningLanguage,
-          settings.learningLevel
+          settings.learningLevel,
         );
 
         setState({
@@ -73,7 +75,7 @@ export const useTranslation = () => {
         throw err;
       }
     },
-    [settings]
+    [settings],
   );
 
   const clearTranslation = useCallback(() => {
@@ -98,6 +100,6 @@ export const useTranslation = () => {
     translate,
     clearTranslation,
     removeSuggestion,
-    hasApiKey: !!settings?.anthropicApiKey,
+    hasApiKey: !!settings.apiKey,
   };
 };

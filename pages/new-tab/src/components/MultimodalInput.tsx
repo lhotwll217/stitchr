@@ -151,9 +151,7 @@ export function MultimodalInput({ onTranslate, isLoading, hasApiKey }: Multimoda
       </div>
 
       {!hasApiKey && (
-        <p className="text-sm text-amber-600">
-          Please add your Anthropic API key in the Settings tab to enable translation.
-        </p>
+        <p className="text-sm text-amber-600">Please add an API key in the Settings tab to enable translation.</p>
       )}
     </form>
   );
