@@ -235,6 +235,12 @@ importers:
         specifier: workspace:*
         version: link:../tsconfig
 
+  packages/llm:
+    devDependencies:
+      '@extension/tsconfig':
+        specifier: workspace:*
+        version: link:../tsconfig
+
   packages/module-manager:
     devDependencies:
       '@extension/dev-utils':
@@ -493,6 +499,9 @@ importers:
       '@extension/i18n':
         specifier: workspace:*
         version: link:../../packages/i18n
+      '@extension/llm':
+        specifier: workspace:*
+        version: link:../../packages/llm
       '@extension/shared':
         specifier: workspace:*
         version: link:../../packages/shared
