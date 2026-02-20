@@ -71,6 +71,12 @@ export type VocabularyStorageType = BaseStorageType<VocabularyItem[]> & {
 };
 
 export interface SettingsState {
+  provider: 'anthropic' | 'openai';
+  apiKeys: {
+    anthropic: string;
+    openai: string;
+  };
+  // Legacy field kept for backward compatibility with existing stored data.
   anthropicApiKey: string;
   nativeLanguage: string;
   learningLanguage: string;
@@ -78,6 +84,9 @@ export interface SettingsState {
 }
 
 export type SettingsStorageType = BaseStorageType<SettingsState> & {
+  setProvider: (provider: SettingsState['provider']) => Promise<void>;
+  setProviderApiKey: (provider: SettingsState['provider'], key: string) => Promise<void>;
+  clearProviderApiKey: (provider: SettingsState['provider']) => Promise<void>;
   setApiKey: (key: string) => Promise<void>;
   clearApiKey: () => Promise<void>;
 };
